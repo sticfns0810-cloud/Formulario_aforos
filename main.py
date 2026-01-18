@@ -2,24 +2,36 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import database
 
-def calcular_subtotal(cantidad, recipiente, catalogos):
-    if recipiente in catalogos['recipientes']:
-        equivalencia = catalogos['recipientes'][recipiente]
-        return cantidad * equivalencia if cantidad else 0
-    return 0
+def calcular_tarifa(valor, mini_extra, subtotal):
+    return (valor + mini_extra) * subtotal if valor and subtotal else 0
 
-def on_nombre_select(event):
+def update_from_cliente():
     nombre = nombre_combo.get()
-    if nombre in catalogos['clientes']:
-        cliente = catalogos['clientes'][nombre]
+    tipo_servicio = tipo_servicio_var.get()
+    cliente = catalogos['clientes'].get(nombre)
+    if cliente:
         empresa_entry.delete(0, tk.END)
         empresa_entry.insert(0, cliente['empresa'])
-        tipo_servicio_combo.set(cliente['tipo_servicio'])
-        valor_label.config(text=str(cliente['valor']))
-        facturable_label.config(text=cliente['facturable'])
+        if tipo_servicio == cliente['tipo_servicio']:
+            valor_label.config(text=str(cliente['valor']))
+            facturable_label.config(text=cliente['facturable'])
+        else:
+            valor_label.config(text="0")
+            facturable_label.config(text="No")
+        # Mini
         mini_var.set(1 if cliente['mini_cargador'] > 0 else 0)
-        # Actualizar tarifa si hay cantidad y recipiente
-        actualizar_calculos()
+    else:
+        empresa_entry.delete(0, tk.END)
+        valor_label.config(text="0")
+        facturable_label.config(text="No")
+        mini_var.set(0)
+    actualizar_calculos()
+
+def on_nombre_select(event):
+    update_from_cliente()
+
+def on_tipo_servicio_change():
+    update_from_cliente()
 
 def actualizar_calculos():
     cantidad = float(cantidad_entry.get()) if cantidad_entry.get() else 0
@@ -41,17 +53,28 @@ def guardar():
     cantidad = float(cantidad_entry.get()) if cantidad_entry.get() else 0
     subtotal = calcular_subtotal(cantidad, recipiente, catalogos)
     empresa = empresa_entry.get()  # Placeholder
-    tipo_servicio = tipo_servicio_combo.get()
-    valor = float(valor_label.cget("text")) if valor_label.cget("text") else 0
-    facturable = facturable_label.cget("text")
+    tipo_servicio = tipo_servicio_var.get()
+    cliente = catalogos['clientes'].get(nombre)
+    if cliente:
+        if tipo_servicio == cliente['tipo_servicio']:
+            valor = cliente['valor']
+            facturable = cliente['facturable']
+        else:
+            valor = 0
+            facturable = "No"
+        empresa = cliente['empresa']
+    else:
+        valor = 0
+        facturable = "No"
+        empresa = ""
     mini_cargador = 1 if mini_var.get() else 0
     mini_extra = float(catalogos['clientes'].get(nombre, {}).get('mini_cargador', 0)) if mini_cargador else 0
     observacion = observacion_text.get("1.0", tk.END).strip()
     tarifa = float(tarifa_label.cget("text")) if tarifa_label.cget("text") else 0
 
-    # Validar obligatorios (placeholder, ajustar después)
-    if not fecha or not nombre or not vehiculo or not foro or not recipiente or cantidad <= 0:
-        messagebox.showerror("Error", "Completa los campos obligatorios")
+    # Validar obligatorios (manuales)
+    if not fecha or not nombre or not vehiculo or not foro or not recipiente or cantidad <= 0 or not observacion.strip():
+        messagebox.showerror("Error", "Completa los campos obligatorios: Fecha, Nombre, Vehículo, Foro, Recipiente, Cantidad, Observación")
         return
 
     datos = (fecha, nombre, vehiculo, foro, recipiente, cantidad, subtotal, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, tarifa)
@@ -80,7 +103,7 @@ root.title("Formulario Aforos")
 root.geometry("600x700")
 
 # Campos
-tk.Label(root, text="FECHA").grid(row=0, column=0, sticky="w")
+tk.Label(root, text="FECHA (DD/MM/YYYY)").grid(row=0, column=0, sticky="w")
 fecha_entry = tk.Entry(root)
 fecha_entry.grid(row=0, column=1)
 
@@ -98,9 +121,17 @@ foro_entry = tk.Entry(root)
 foro_entry.grid(row=3, column=1)
 
 tk.Label(root, text="RECIPIENTE").grid(row=4, column=0, sticky="w")
-recipiente_combo = ttk.Combobox(root, values=list(catalogos['recipientes'].keys()))
+recipiente_var = tk.StringVar()
+recipiente_combo = ttk.Combobox(root, textvariable=recipiente_var, values=list(catalogos['recipientes'].keys()))
 recipiente_combo.grid(row=4, column=1)
-recipiente_combo.bind("<<ComboboxSelected>>", lambda e: actualizar_calculos())
+def filter_recipientes(event):
+    typed = recipiente_var.get()
+    if typed == '':
+        recipiente_combo['values'] = list(catalogos['recipientes'].keys())
+    else:
+        filtered = [r for r in catalogos['recipientes'] if typed.lower() in r.lower()]
+        recipiente_combo['values'] = filtered
+recipiente_combo.bind('<KeyRelease>', filter_recipientes)
 
 tk.Label(root, text="CANTIDAD").grid(row=5, column=0, sticky="w")
 cantidad_entry = tk.Entry(root)
@@ -116,8 +147,10 @@ empresa_entry = tk.Entry(root)  # Placeholder
 empresa_entry.grid(row=7, column=1)
 
 tk.Label(root, text="TIPO_SERVICIO").grid(row=8, column=0, sticky="w")
-tipo_servicio_combo = ttk.Combobox(root, values=["blanco", "ESPECIAL", "ORDINARIO"])
-tipo_servicio_combo.grid(row=8, column=1)
+tipo_servicio_var = tk.StringVar()
+tipo_servicio_var.set("")  # Blanco por defecto
+tk.Radiobutton(root, text="ESPECIAL", variable=tipo_servicio_var, value="ESPECIAL", command=on_tipo_servicio_change).grid(row=8, column=1, sticky="w")
+tk.Radiobutton(root, text="ORDINARIO", variable=tipo_servicio_var, value="ORDINARIO", command=on_tipo_servicio_change).grid(row=8, column=1)
 
 tk.Label(root, text="VALOR").grid(row=9, column=0, sticky="w")
 valor_label = tk.Label(root, text="0")  # Placeholder
