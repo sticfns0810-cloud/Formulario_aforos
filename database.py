@@ -41,10 +41,16 @@ def crear_tablas():
         )
     ''')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS recipientes (
+        CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY,
-            recipiente TEXT,
-            equivalencia REAL
+            nombre TEXT UNIQUE,
+            empresa TEXT,
+            tipo_servicio TEXT,
+            valor REAL,
+            facturable TEXT,
+            mini_cargador REAL,
+            observacion TEXT,
+            estado TEXT
         )
     ''')
     conn.commit()
@@ -59,6 +65,9 @@ def insertar_datos_ejemplo():
     # Recipientes
     cursor.execute("INSERT OR IGNORE INTO recipientes (recipiente, equivalencia) VALUES (?, ?)", ("Tanque 1000L", 1.5))
     cursor.execute("INSERT OR IGNORE INTO recipientes (recipiente, equivalencia) VALUES (?, ?)", ("Bidón 200L", 0.8))
+    # Clientes
+    cursor.execute("INSERT OR IGNORE INTO clientes (nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ("Cliente1", "Empresa1", "ESPECIAL", 50, "si", 5, "Nota1", "activo"))
+    cursor.execute("INSERT OR IGNORE INTO clientes (nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ("Cliente2", "Empresa2", "ORDINARIO", 30, "no", 0, "Nota2", "activo"))
     conn.commit()
     conn.close()
 
@@ -74,15 +83,165 @@ def obtener_catalogos():
     cursor.execute("SELECT recipiente, equivalencia FROM recipientes")
     recipientes = {row[0]: row[1] for row in cursor.fetchall()}
     catalogos['recipientes'] = recipientes
+    # Clientes
+    cursor.execute("SELECT nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado FROM clientes WHERE estado = 'activo'")
+    clientes = {}
+    for row in cursor.fetchall():
+        clientes[row[0]] = {
+            'empresa': row[1],
+            'tipo_servicio': row[2],
+            'valor': row[3],
+            'facturable': row[4],
+            'mini_cargador': row[5],
+            'observacion': row[6],
+            'estado': row[7]
+        }
+    catalogos['clientes'] = clientes
     conn.close()
     return catalogos
 
-def guardar_registro(datos):
+def insert_cliente(datos):
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO registros (fecha, nombre, vehiculo, foro, recipiente, cantidad, subtotal, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, tarifa)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clientes (nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', datos)
+    conn.commit()
+    conn.close()
+
+def update_cliente(id, datos):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE clientes SET nombre=?, empresa=?, tipo_servicio=?, valor=?, facturable=?, mini_cargador=?, observacion=?, estado=?
+        WHERE id=?
+    ''', datos + (id,))
+    conn.commit()
+    conn.close()
+
+def delete_cliente(id):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    # Verificar vínculos
+    cursor.execute("SELECT COUNT(*) FROM registros WHERE nombre = (SELECT nombre FROM clientes WHERE id=?)", (id,))
+    if cursor.fetchone()[0] > 0:
+        conn.close()
+        raise ValueError("No se puede eliminar: hay registros vinculados")
+    cursor.execute("DELETE FROM clientes WHERE id=?", (id,))
+    conn.commit()
+    conn.close()
+
+def get_clientes():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado FROM clientes")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# Similar para vehiculos
+def insert_vehiculo(datos):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO vehiculos (placa, alquiler, tipo)
+        VALUES (?, ?, ?)
+    ''', datos)
+    conn.commit()
+    conn.close()
+
+def update_vehiculo(id, datos):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE vehiculos SET placa=?, alquiler=?, tipo=?
+        WHERE id=?
+    ''', datos + (id,))
+    conn.commit()
+    conn.close()
+
+def delete_vehiculo(id):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM registros WHERE vehiculo = (SELECT placa FROM vehiculos WHERE id=?)", (id,))
+    if cursor.fetchone()[0] > 0:
+        conn.close()
+        raise ValueError("No se puede eliminar: hay registros vinculados")
+    cursor.execute("DELETE FROM vehiculos WHERE id=?", (id,))
+    conn.commit()
+    conn.close()
+
+def get_vehiculos():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, placa, alquiler, tipo FROM vehiculos")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# Similar para recipientes
+def insert_recipiente(datos):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO recipientes (recipiente, equivalencia)
+        VALUES (?, ?)
+    ''', datos)
+    conn.commit()
+    conn.close()
+
+def update_recipiente(id, datos):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE recipientes SET recipiente=?, equivalencia=?
+        WHERE id=?
+    ''', datos + (id,))
+    conn.commit()
+    conn.close()
+
+def delete_recipiente(id):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM registros WHERE recipiente = (SELECT recipiente FROM recipientes WHERE id=?)", (id,))
+    if cursor.fetchone()[0] > 0:
+        conn.close()
+        raise ValueError("No se puede eliminar: hay registros vinculados")
+    cursor.execute("DELETE FROM recipientes WHERE id=?", (id,))
+    conn.commit()
+    conn.close()
+
+def get_recipientes():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, recipiente, equivalencia FROM recipientes")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# Para registros
+def get_registros():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, fecha, nombre, vehiculo, foro, recipiente, cantidad, subtotal, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, tarifa FROM registros")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def update_registro(id, datos):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE registros SET fecha=?, nombre=?, vehiculo=?, foro=?, recipiente=?, cantidad=?, subtotal=?, empresa=?, tipo_servicio=?, valor=?, facturable=?, mini_cargador=?, observacion=?, tarifa=?
+        WHERE id=?
+    ''', datos + (id,))
+    conn.commit()
+    conn.close()
+
+def delete_registro(id):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM registros WHERE id=?", (id,))
     conn.commit()
     conn.close()
