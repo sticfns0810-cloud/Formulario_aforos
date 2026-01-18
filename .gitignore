@@ -1,0 +1,17 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Archivos de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ejecutables generados
+dist/
+build/
+*.spec
+
+# Base de datos local (si es necesario)
+*.db
