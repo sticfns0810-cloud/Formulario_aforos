@@ -1,7 +1,17 @@
 import sqlite3
+import os
+import sys
+
+if getattr(sys, 'frozen', False):
+    # Si es .exe
+    db_dir = os.path.dirname(sys.executable)
+else:
+    db_dir = os.getcwd()
+
+DB_PATH = os.path.join(db_dir, 'formulario.db')
 
 def conectar_db():
-    return sqlite3.connect('formulario.db')
+    return sqlite3.connect(DB_PATH)
 
 def crear_tablas():
     conn = conectar_db()
@@ -53,21 +63,34 @@ def crear_tablas():
             estado TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS recipientes (
+            id INTEGER PRIMARY KEY,
+            recipiente TEXT,
+            equivalencia REAL
+        )
+    ''')
     conn.commit()
     conn.close()
 
 def insertar_datos_ejemplo():
     conn = conectar_db()
     cursor = conn.cursor()
-    # Vehículos
-    cursor.execute("INSERT OR IGNORE INTO vehiculos (placa, alquiler, tipo) VALUES (?, ?, ?)", ("ABC123", 100, "Camión"))
-    cursor.execute("INSERT OR IGNORE INTO vehiculos (placa, alquiler, tipo) VALUES (?, ?, ?)", ("DEF456", None, None))
-    # Recipientes
-    cursor.execute("INSERT OR IGNORE INTO recipientes (recipiente, equivalencia) VALUES (?, ?)", ("Tanque 1000L", 1.5))
-    cursor.execute("INSERT OR IGNORE INTO recipientes (recipiente, equivalencia) VALUES (?, ?)", ("Bidón 200L", 0.8))
-    # Clientes
-    cursor.execute("INSERT OR IGNORE INTO clientes (nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ("Cliente1", "Empresa1", "ESPECIAL", 50, "si", 5, "Nota1", "activo"))
-    cursor.execute("INSERT OR IGNORE INTO clientes (nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ("Cliente2", "Empresa2", "ORDINARIO", 30, "no", 0, "Nota2", "activo"))
+    # Vehículos - solo si no existen
+    cursor.execute("SELECT COUNT(*) FROM vehiculos")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO vehiculos (placa, alquiler, tipo) VALUES (?, ?, ?)", ("ABC123", 100, "Camión"))
+        cursor.execute("INSERT INTO vehiculos (placa, alquiler, tipo) VALUES (?, ?, ?)", ("DEF456", None, None))
+    # Recipientes - solo si no existen
+    cursor.execute("SELECT COUNT(*) FROM recipientes")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO recipientes (recipiente, equivalencia) VALUES (?, ?)", ("Tanque 1000L", 1.5))
+        cursor.execute("INSERT INTO recipientes (recipiente, equivalencia) VALUES (?, ?)", ("Bidón 200L", 0.8))
+    # Clientes - solo si no existen
+    cursor.execute("SELECT COUNT(*) FROM clientes")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO clientes (nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ("Cliente1", "Empresa1", "ESPECIAL", 50, "si", 5, "Nota1", "activo"))
+        cursor.execute("INSERT INTO clientes (nombre, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ("Cliente2", "Empresa2", "ORDINARIO", 30, "no", 0, "Nota2", "activo"))
     conn.commit()
     conn.close()
 
@@ -245,3 +268,21 @@ def delete_registro(id):
     cursor.execute("DELETE FROM registros WHERE id=?", (id,))
     conn.commit()
     conn.close()
+
+def importar_csv(tabla, archivo):
+    import csv
+    conn = conectar_db()
+    cursor = conn.cursor()
+    try:
+        with open(archivo, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+            for row in reader:
+                placeholders = ','.join(['?' for _ in headers])
+                cursor.execute(f"INSERT OR IGNORE INTO {tabla} ({','.join(headers)}) VALUES ({placeholders})", row)
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        conn.close()
+        raise e

@@ -78,19 +78,25 @@ def guardar():
         return
 
     datos = (fecha, nombre, vehiculo, foro, recipiente, cantidad, subtotal, empresa, tipo_servicio, valor, facturable, mini_cargador, observacion, tarifa)
-    database.guardar_registro(datos)
-    messagebox.showinfo("Éxito", "Registro guardado")
-    # Limpiar campos
-    fecha_entry.delete(0, tk.END)
-    nombre_combo.set('')
-    vehiculo_combo.set('')
-    foro_entry.delete(0, tk.END)
-    recipiente_combo.set('')
-    cantidad_entry.delete(0, tk.END)
-    empresa_entry.delete(0, tk.END)
-    tipo_servicio_combo.set('')
-    mini_var.set(0)
-    observacion_text.delete("1.0", tk.END)
+    try:
+        database.guardar_registro(datos)
+        messagebox.showinfo("Éxito", "Registro guardado correctamente")
+        # Limpiar campos
+        fecha_entry.delete(0, tk.END)
+        nombre_combo.set('')
+        vehiculo_combo.set('')
+        foro_entry.delete(0, tk.END)
+        recipiente_var.set('')
+        cantidad_entry.delete(0, tk.END)
+        empresa_entry.delete(0, tk.END)
+        tipo_servicio_var.set('')
+        mini_var.set(0)
+        observacion_text.delete("1.0", tk.END)
+        valor_label.config(text="0")
+        facturable_label.config(text="No")
+        tarifa_label.config(text="0")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo guardar: {str(e)}")
 
 # Inicializar BD
 database.crear_tablas()
@@ -147,10 +153,12 @@ empresa_entry = tk.Entry(root)  # Placeholder
 empresa_entry.grid(row=7, column=1)
 
 tk.Label(root, text="TIPO_SERVICIO").grid(row=8, column=0, sticky="w")
-tipo_servicio_var = tk.StringVar()
-tipo_servicio_var.set("")  # Blanco por defecto
-tk.Radiobutton(root, text="ESPECIAL", variable=tipo_servicio_var, value="ESPECIAL", command=on_tipo_servicio_change).grid(row=8, column=1, sticky="w")
-tk.Radiobutton(root, text="ORDINARIO", variable=tipo_servicio_var, value="ORDINARIO", command=on_tipo_servicio_change).grid(row=8, column=1)
+tipo_servicio_var = tk.StringVar(value="")  # Vacío por defecto
+frame_tipo = tk.Frame(root)
+frame_tipo.grid(row=8, column=1, sticky="w")
+tk.Radiobutton(frame_tipo, text="ESPECIAL", variable=tipo_servicio_var, value="ESPECIAL", command=on_tipo_servicio_change).pack(side="left")
+tk.Radiobutton(frame_tipo, text="ORDINARIO", variable=tipo_servicio_var, value="ORDINARIO", command=on_tipo_servicio_change).pack(side="left")
+tk.Radiobutton(frame_tipo, text="Ninguno", variable=tipo_servicio_var, value="", command=on_tipo_servicio_change).pack(side="left")
 
 tk.Label(root, text="VALOR").grid(row=9, column=0, sticky="w")
 valor_label = tk.Label(root, text="0")  # Placeholder
@@ -174,9 +182,131 @@ tarifa_label = tk.Label(root, text="0")
 tarifa_label.grid(row=13, column=1)
 
 def abrir_gestion():
-    pass  # Placeholder
+    gestion_window = tk.Toplevel(root)
+    gestion_window.title("Gestión de Catálogos y Aforos")
+    gestion_window.geometry("800x600")
 
-# Botón gestionar
+    notebook = ttk.Notebook(gestion_window)
+    notebook.pack(fill="both", expand=True)
+
+    # Pestaña Clientes
+    frame_clientes = ttk.Frame(notebook)
+    notebook.add(frame_clientes, text="Clientes")
+
+    tree_clientes = ttk.Treeview(frame_clientes, columns=("ID", "Nombre", "Empresa", "Tipo_Servicio", "Valor", "Facturable", "Mini_Cargador", "Observacion", "Estado"), show="headings")
+    for col in tree_clientes["columns"]:
+        tree_clientes.heading(col, text=col)
+        tree_clientes.column(col, width=80)
+    tree_clientes.pack(fill="both", expand=True)
+
+    def cargar_clientes():
+        for row in tree_clientes.get_children():
+            tree_clientes.delete(row)
+        for row in database.get_clientes():
+            tree_clientes.insert("", "end", values=row)
+
+    cargar_clientes()
+
+    btn_frame_c = ttk.Frame(frame_clientes)
+    btn_frame_c.pack()
+    ttk.Button(btn_frame_c, text="Agregar", command=lambda: agregar_cliente(cargar_clientes)).pack(side="left")
+    ttk.Button(btn_frame_c, text="Editar", command=lambda: editar_cliente(tree_clientes, cargar_clientes)).pack(side="left")
+    ttk.Button(btn_frame_c, text="Eliminar", command=lambda: eliminar_cliente(tree_clientes, cargar_clientes)).pack(side="left")
+
+    # Pestaña Vehículos
+    frame_vehiculos = ttk.Frame(notebook)
+    notebook.add(frame_vehiculos, text="Vehículos")
+
+    tree_vehiculos = ttk.Treeview(frame_vehiculos, columns=("ID", "Placa", "Alquiler", "Tipo"), show="headings")
+    for col in ["ID", "Placa", "Alquiler", "Tipo"]:
+        tree_vehiculos.heading(col, text=col)
+        tree_vehiculos.column(col, width=100)
+    tree_vehiculos.pack(fill="both", expand=True)
+
+    def cargar_vehiculos():
+        for row in tree_vehiculos.get_children():
+            tree_vehiculos.delete(row)
+        for row in database.get_vehiculos():
+            tree_vehiculos.insert("", "end", values=row)
+
+    cargar_vehiculos()
+
+    btn_frame_v = ttk.Frame(frame_vehiculos)
+    btn_frame_v.pack()
+    ttk.Button(btn_frame_v, text="Agregar", command=lambda: agregar_vehiculo(cargar_vehiculos)).pack(side="left")
+    ttk.Button(btn_frame_v, text="Editar", command=lambda: editar_vehiculo(tree_vehiculos, cargar_vehiculos)).pack(side="left")
+    ttk.Button(btn_frame_v, text="Eliminar", command=lambda: eliminar_vehiculo(tree_vehiculos, cargar_vehiculos)).pack(side="left")
+
+    # Pestaña Recipientes
+    frame_recipientes = ttk.Frame(notebook)
+    notebook.add(frame_recipientes, text="Recipientes")
+
+    tree_recipientes = ttk.Treeview(frame_recipientes, columns=("ID", "Recipiente", "Equivalencia"), show="headings")
+    for col in ["ID", "Recipiente", "Equivalencia"]:
+        tree_recipientes.heading(col, text=col)
+        tree_recipientes.column(col, width=100)
+    tree_recipientes.pack(fill="both", expand=True)
+
+    def cargar_recipientes():
+        for row in tree_recipientes.get_children():
+            tree_recipientes.delete(row)
+        for row in database.get_recipientes():
+            tree_recipientes.insert("", "end", values=row)
+
+    cargar_recipientes()
+
+    btn_frame_r = ttk.Frame(frame_recipientes)
+    btn_frame_r.pack()
+    ttk.Button(btn_frame_r, text="Agregar", command=lambda: agregar_recipiente(cargar_recipientes)).pack(side="left")
+    ttk.Button(btn_frame_r, text="Editar", command=lambda: editar_recipiente(tree_recipientes, cargar_recipientes)).pack(side="left")
+    ttk.Button(btn_frame_r, text="Eliminar", command=lambda: eliminar_recipiente(tree_recipientes, cargar_recipientes)).pack(side="left")
+
+    # Pestaña Aforos
+    frame_aforos = ttk.Frame(notebook)
+    notebook.add(frame_aforos, text="Aforos")
+
+    tree_aforos = ttk.Treeview(frame_aforos, columns=("ID", "Fecha", "Nombre", "Vehiculo", "Foro", "Recipiente", "Cantidad", "Subtotal", "Empresa", "Tipo_Servicio", "Valor", "Facturable", "Mini_Cargador", "Observacion", "Tarifa"), show="headings")
+    for col in tree_aforos["columns"]:
+        tree_aforos.heading(col, text=col)
+        tree_aforos.column(col, width=80)
+    tree_aforos.pack(fill="both", expand=True)
+
+    def cargar_aforos():
+        for row in tree_aforos.get_children():
+            tree_aforos.delete(row)
+        for row in database.get_registros():
+            tree_aforos.insert("", "end", values=row)
+
+    cargar_aforos()
+
+    btn_frame_a = ttk.Frame(frame_aforos)
+    btn_frame_a.pack()
+    ttk.Button(btn_frame_a, text="Editar", command=lambda: editar_aforo(tree_aforos, cargar_aforos)).pack(side="left")
+    ttk.Button(btn_frame_a, text="Eliminar", command=lambda: eliminar_aforo(tree_aforos, cargar_aforos)).pack(side="left")
+
+    # Pestaña Importar
+    frame_importar = ttk.Frame(notebook)
+    notebook.add(frame_importar, text="Importar CSV")
+    
+    tk.Label(frame_importar, text="Importar datos desde CSV").pack(pady=10)
+    tk.Label(frame_importar, text="Tabla:").pack()
+    tabla_var = tk.StringVar(value="clientes")
+    ttk.Combobox(frame_importar, textvariable=tabla_var, values=["clientes", "vehiculos", "recipientes"], state="readonly").pack()
+    
+    def importar():
+        from tkinter import filedialog
+        archivo = filedialog.askopenfilename(filetypes=[("CSV", "*.csv")])
+        if archivo:
+            try:
+                database.importar_csv(tabla_var.get(), archivo)
+                messagebox.showinfo("Éxito", f"Datos importados correctamente en {tabla_var.get()}")
+                if tabla_var.get() == "clientes": cargar_clientes()
+                elif tabla_var.get() == "vehiculos": cargar_vehiculos()
+                elif tabla_var.get() == "recipientes": cargar_recipientes()
+            except Exception as e:
+                messagebox.showerror("Error", f"Fallo al importar: {str(e)}")
+    
+    ttk.Button(frame_importar, text="Seleccionar archivo CSV", command=importar).pack(pady=10)
 tk.Button(root, text="Gestionar Catálogos y Aforos", command=abrir_gestion).grid(row=15, column=0, columnspan=2, pady=10)
 
 def abrir_gestion():
